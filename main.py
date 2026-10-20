@@ -26,19 +26,15 @@ BASE = Path(__file__).parent
 PREVIEW_DIR = BASE / "previews"
 PREVIEW_DIR.mkdir(exist_ok=True)
 
-# ───────────────────────── КОНФИГУРАЦИЯ ─────────────────────────
-# Токен бота (можно оставить здесь или передать через переменную окружения / панель Bothost)
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ТВОЙ_ТОКЕН_БОТА_ЕСЛИ_НУЖНО")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Настройки из твоего data.txt
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "-1004443157249"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1004454392066"))
 DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1003603070583"))
 VOTE_HOURS = float(os.getenv("VOTE_HOURS", "24"))
 EARLY_LIKES = int(os.getenv("EARLY_LIKES", "1"))
 
-# Укажи здесь СВОЙ Telegram ID, чтобы сразу получить права главного создателя (/sozd и /import)
-DEFAULT_OWNER_ID = 7123446502  # <--- ЗАМЕНИ НОЛЛЬ НА СВОЙ TELEGRAM ID
+DEFAULT_OWNER_ID = 7123446502
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mashup")
