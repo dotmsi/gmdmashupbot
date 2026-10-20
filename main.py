@@ -153,11 +153,18 @@ async def sync_group_admins():
             if user.is_bot:
                 continue
             current_admin_ids.add(user.id)
+            
+            # Сохраняем или обновляем пользователя в базе. 
+            # Берем актуальный full_name, а если он пустой — ставим fallback на user.first_name или ID
+            name_to_save = user.full_name or user.first_name or str(user.id)
+            
             ex(
                 "INSERT INTO users(id, name, is_admin) VALUES(?, ?, 1) "
                 "ON CONFLICT(id) DO UPDATE SET is_admin=1, name=COALESCE(NULLIF(excluded.name, ''), users.name)",
-                (user.id, user.full_name)
+                (user.id, name_to_save)
             )
+        
+        # Сбрасываем админку тем, кого сняли с админке в чате (кроме владельца бота)
         db.execute(
             "UPDATE users SET is_admin=0 WHERE is_admin=1 AND is_owner=0 AND id NOT IN ({})".format(
                 ",".join("?" * len(current_admin_ids)) if current_admin_ids else "0"
