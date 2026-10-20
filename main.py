@@ -815,7 +815,7 @@ async def cmd_import(m: Message, command: CommandObject):
     try:
         args = (command.args or "").split()
         if len(args) < 2:
-            await m.answer("Формат: /import <user_id> <count> <user_id> <count> ...")
+            await m.answer("Формат: /import user_id count user_id count ...")
             return
         
         success_count = 0
