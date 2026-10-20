@@ -305,7 +305,9 @@ class NameMW(BaseMiddleware):
     async def __call__(self, handler, event, data):
         u = data.get("event_from_user")
         if u:
-            ex("UPDATE users SET name=? WHERE id=?", (u.full_name, u.id))
+            # Соединяем имя и фамилию через пробел, убирая лишние пустые места
+            full_name = " ".join(filter(None, [u.first_name, u.last_name])) or str(u.id)
+            ex("UPDATE users SET name=? WHERE id=?", (full_name, u.id))
         return await handler(event, data)
 
 
