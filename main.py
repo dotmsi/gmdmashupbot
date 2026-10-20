@@ -26,15 +26,16 @@ BASE = Path(__file__).parent
 PREVIEW_DIR = BASE / "previews"
 PREVIEW_DIR.mkdir(exist_ok=True)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# ───────────────────────── КОНФИГУРАЦИЯ ─────────────────────────
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ТВОЙ_ТОКЕН_БОТА")
 
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "-1004443157249"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002666220955"))
-DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1002666044964"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1004454392066"))
+DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1003603070583"))
 VOTE_HOURS = float(os.getenv("VOTE_HOURS", "24"))
-EARLY_LIKES = int(os.getenv("EARLY_LIKES", "3"))
+EARLY_LIKES = int(os.getenv("EARLY_LIKES", "1"))
 
-DEFAULT_OWNER_ID = 7123446502
+DEFAULT_OWNER_ID = 0  # <--- Можешь указать свой ID для авто-выдачи создателя при старте
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mashup")
@@ -142,40 +143,6 @@ def total_admins_count() -> int:
     return res["c"] if res else 0
 
 
-async def sync_group_admins():
-    if not ADMIN_CHAT_ID:
-        return
-    try:
-        admins = await bot.get_chat_administrators(ADMIN_CHAT_ID)
-        current_admin_ids = set()
-        for member in admins:
-            user = member.user
-            if user.is_bot:
-                continue
-            current_admin_ids.add(user.id)
-            
-            # Сохраняем или обновляем пользователя в базе. 
-            # Берем актуальный full_name, а если он пустой — ставим fallback на user.first_name или ID
-            name_to_save = user.full_name or user.first_name or str(user.id)
-            
-            ex(
-                "INSERT INTO users(id, name, is_admin) VALUES(?, ?, 1) "
-                "ON CONFLICT(id) DO UPDATE SET is_admin=1, name=COALESCE(NULLIF(excluded.name, ''), users.name)",
-                (user.id, name_to_save)
-            )
-        
-        # Сбрасываем админку тем, кого сняли с админке в чате (кроме владельца бота)
-        db.execute(
-            "UPDATE users SET is_admin=0 WHERE is_admin=1 AND is_owner=0 AND id NOT IN ({})".format(
-                ",".join("?" * len(current_admin_ids)) if current_admin_ids else "0"
-            ),
-            tuple(current_admin_ids) if current_admin_ids else ()
-        )
-        db.commit()
-    except Exception:
-        log.exception("Не удалось синхронизировать админов из чата")
-
-
 def safe_name(n: str) -> str:
     return re.sub(r'[\\/:*?"<>|\r\n\t]+', "_", n).strip().lower()
 
@@ -266,6 +233,13 @@ async def finalize(sid: int, force_accept: bool = None):
     s = q1("SELECT * FROM subs WHERE id=?", (sid,))
     verdict = "Принят досрочно" if force_accept is True else ("Отклонен досрочно" if force_accept is False else ("Принят" if ok else "Отклонен"))
 
+    # Открепляем сообщение из админ-чата при завершении
+    if s["admin_msg"]:
+        try:
+            await bot.unpin_chat_message(chat_id=ADMIN_CHAT_ID, message_id=s["admin_msg"])
+        except Exception:
+            pass
+
     try:
         await bot.edit_message_caption(chat_id=ADMIN_CHAT_ID, message_id=s["admin_msg"],
                                        caption=f"{info(s)}\n\n{verdict} ({likes}+ / {dislikes}-)", reply_markup=None)
@@ -295,7 +269,6 @@ async def notify(uid: int, text: str):
 async def watcher():
     while True:
         try:
-            await sync_group_admins()
             now = int(time.time())
 
             for x in q("SELECT id, created FROM subs WHERE status='pending'"):
@@ -305,6 +278,13 @@ async def watcher():
                 if now - x["created"] >= VOTE_HOURS * 3600 and (likes + dislikes) == 0:
                     ex("UPDATE subs SET status='timeout_rejected' WHERE id=? AND status='pending'", (sid,))
                     s = q1("SELECT * FROM subs WHERE id=?", (sid,))
+                    
+                    if s["admin_msg"]:
+                        try:
+                            await bot.unpin_chat_message(chat_id=ADMIN_CHAT_ID, message_id=s["admin_msg"])
+                        except Exception:
+                            pass
+
                     try:
                         await bot.edit_message_caption(chat_id=ADMIN_CHAT_ID, message_id=s["admin_msg"],
                                                        caption=f"{info(s)}\n\nОтклонено по таймауту (нет голосов за {VOTE_HOURS}ч)", reply_markup=None)
@@ -682,11 +662,16 @@ async def f_nick(m: Message, state: FSMContext):
             msg = await bot.send_audio(ADMIN_CHAT_ID, s["file_id"], caption=caption, reply_markup=vote_kb(sid, 0, 0))
         else:
             msg = await bot.send_document(ADMIN_CHAT_ID, s["file_id"], caption=caption, reply_markup=vote_kb(sid, 0, 0))
+        
+        # Автоматически закрепляем сообщение в админ-чате
+        await bot.pin_chat_message(chat_id=ADMIN_CHAT_ID, message_id=msg.message_id)
+
     except Exception as e:
         log.exception("send to admin chat")
         ex("UPDATE subs SET status='error' WHERE id=?", (sid,))
         await m.answer("Не получилось отправить заявку админам, попробуй позже.")
         return
+    
     ex("UPDATE subs SET admin_msg=? WHERE id=?", (msg.message_id, sid))
     await m.answer(f"Мешап на проверке. Заявка #{sid} отправлена админам.\n\nПрислать новый мешап: /start")
 
@@ -797,13 +782,10 @@ def parse_id(cmd: CommandObject):
     return int(a) if re.fullmatch(r"-?\d+", a) else None
 
 
-# ───────────────── КОМАНДЫ СОЗДАТЕЛЯ В ТЕЛЕГРАМЕ (/sozd и /import) ─────────────────
 @r.message(Command("sozd"))
 async def cmd_sozd(m: Message, command: CommandObject):
     if m.chat.type != "private":
         return
-    # Если еще нет ни одного власльца в базе, первая команда /sozd сработает от кого угодно.
-    # После этого — только текущий владелец.
     owner_exists = q1("SELECT id FROM users WHERE is_owner=1")
     if owner_exists and not is_owner(m.from_user.id):
         await m.answer("У вас нет прав.")
@@ -822,7 +804,7 @@ async def cmd_import(m: Message, command: CommandObject):
     try:
         args = (command.args or "").split()
         if len(args) < 2:
-            await m.answer("Формат: /import user_id count user_id count ...")
+            await m.answer("Формат: /import <user_id> <count> <user_id> <count> ...")
             return
         
         success_count = 0
@@ -1024,7 +1006,6 @@ async def main():
     dp.include_router(r)
     await startup_initialization()
     asyncio.create_task(watcher())
-    asyncio.create_task(sync_group_admins())
     log.info("Бот запущен на Bothost.")
     await dp.start_polling(bot)
 
