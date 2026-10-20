@@ -29,10 +29,10 @@ PREVIEW_DIR.mkdir(exist_ok=True)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "-1004443157249"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1004454392066"))
-DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1003603070583"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002666220955"))
+DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1002666044964"))
 VOTE_HOURS = float(os.getenv("VOTE_HOURS", "24"))
-EARLY_LIKES = int(os.getenv("EARLY_LIKES", "1"))
+EARLY_LIKES = int(os.getenv("EARLY_LIKES", "3"))
 
 DEFAULT_OWNER_ID = 7123446502
 
