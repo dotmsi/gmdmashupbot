@@ -35,7 +35,7 @@ DISCUSSION_CHAT_ID = int(os.getenv("DISCUSSION_CHAT_ID", "-1003603070583"))
 VOTE_HOURS = float(os.getenv("VOTE_HOURS", "24"))
 EARLY_LIKES = int(os.getenv("EARLY_LIKES", "1"))
 
-DEFAULT_OWNER_ID = 0  # <--- Можешь указать свой ID для авто-выдачи создателя при старте
+DEFAULT_OWNER_ID = 7123446502  # <--- Можешь указать свой ID для авто-выдачи создателя при старте
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("mashup")
